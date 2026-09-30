@@ -142,6 +142,7 @@ class ApprovalRequest(BaseModel):
     status: ApprovalStatus = ApprovalStatus.PENDING
     verp_token_hash: str
     requested_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    reminder_count: int = 0
     decided_at: datetime | None = None
     decision_reason: str | None = None
 
@@ -166,6 +167,7 @@ class OutboundEmail(BaseModel):
     recipient: EmailStr
     subject: str
     body: str
+    cc: list[EmailStr] = Field(default_factory=list)
     reply_to: EmailStr | None = None
     in_reply_to: str | None = None
 

@@ -5,6 +5,7 @@ from uuid import UUID
 
 from onboarding.domain.models import (
     ApprovalRequest,
+    ApprovalStatus,
     AuditEvent,
     Employee,
     OnboardingCase,
@@ -51,6 +52,8 @@ class CaseRepository(Protocol):
     def find_approval_request_by_token_hash(
         self, token_hash: str
     ) -> ApprovalRequest | None: ...
+
+    def get_all_pending_approval_requests(self) -> list[ApprovalRequest]: ...
 
     def commit_provisioning_transition(
         self,
@@ -151,6 +154,13 @@ class InMemoryCaseRepository:
         self, token_hash: str
     ) -> ApprovalRequest | None:
         return self._approval_requests_by_token_hash.get(token_hash)
+
+    def get_all_pending_approval_requests(self) -> list[ApprovalRequest]:
+        return [
+            req
+            for req in self._approval_requests_by_task.values()
+            if req.status in (ApprovalStatus.PENDING, ApprovalStatus.ESCALATED)
+        ]
 
     def commit_provisioning_transition(
         self,

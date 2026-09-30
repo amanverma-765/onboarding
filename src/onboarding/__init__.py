@@ -1,5 +1,6 @@
 """Email-first employee onboarding workflow coordinator."""
 
+from onboarding.application.escalation import EscalationCoordinator
 from onboarding.application.service import (
     InboundProcessingResult,
     OnboardingService,
@@ -55,6 +56,7 @@ __all__ = [
     "EmailIntent",
     "EmailSanitizer",
     "Employee",
+    "EscalationCoordinator",
     "GitHubPort",
     "GoogleWorkspacePort",
     "HardwarePort",
