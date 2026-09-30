@@ -20,6 +20,18 @@ class CaseStatus(StrEnum):
     BLOCKED = "BLOCKED"
 
 
+class TaskStatus(StrEnum):
+    WAITING_DEPENDENCY = "WAITING_DEPENDENCY"
+    WAITING_APPROVAL = "WAITING_APPROVAL"
+    READY = "READY"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    SKIPPED = "SKIPPED"
+
+
+TaskOwnerType = Literal["IT", "HR", "MANAGER", "EMPLOYEE"]
+
 MANDATORY_CANDIDATE_FIELDS: tuple[str, ...] = (
     "full_name",
     "personal_email",
@@ -63,6 +75,51 @@ class CandidateDraft(BaseModel):
         if len(cleaned) > 100:
             cleaned = cleaned[:100]
         return cleaned or None
+
+
+class Employee(BaseModel):
+    """Permanent, verified company employee entity."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID = Field(default_factory=uuid4)
+    company_email: str | None = None
+    personal_email: EmailStr
+    full_name: str
+    role_title: str
+    department: str
+    manager_id: UUID | None = None
+    start_date: date
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class OnboardingTask(BaseModel):
+    """Discrete executable task in the onboarding DAG."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID = Field(default_factory=uuid4)
+    case_id: UUID
+    task_key: str
+    owner_type: TaskOwnerType
+    status: TaskStatus = TaskStatus.WAITING_DEPENDENCY
+    requires_approval: bool = False
+    payload: dict[str, Any] = Field(default_factory=dict)
+    error_message: str | None = None
+    retry_count: int = 0
+    completed_at: datetime | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class TaskDependency(BaseModel):
+    """Prerequisite relationship between two onboarding tasks."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    task_id: UUID
+    depends_on_task_id: UUID
 
 
 class InboundEmail(BaseModel):

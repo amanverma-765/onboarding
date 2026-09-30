@@ -65,11 +65,15 @@ class RuleBasedCandidateExtractor:
     _EMAIL_PATTERN = re.compile(
         r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+",
     )
+    _CASE_REF_PATTERN = re.compile(r"ONB-\d{4}-\d+", re.IGNORECASE)
 
     def extract(self, email: InboundEmail) -> NluExtractionResult:
         _wrapped, flags = EmailSanitizer.sanitize(email.body)
         subject_lower = email.subject.lower()
         body_lower = email.body.lower()
+        has_case_ref = bool(
+            self._CASE_REF_PATTERN.search(email.subject + " " + email.body)
+        )
 
         # Classify intent with specific patterns taking precedence
         if "cancel" in subject_lower or "cancel" in body_lower:
@@ -78,6 +82,14 @@ class RuleBasedCandidateExtractor:
         elif "status" in subject_lower or "readiness" in body_lower:
             intent = EmailIntent.QUERY_STATUS
             confidence = 0.85
+        elif (
+            has_case_ref
+            or "clarification" in subject_lower
+            or "here are the details" in body_lower
+            or "details for" in subject_lower
+        ):
+            intent = EmailIntent.PROVIDE_INFO
+            confidence = 0.95
         elif (
             "onboard" in subject_lower
             or "onboard" in body_lower
@@ -89,7 +101,11 @@ class RuleBasedCandidateExtractor:
             intent = EmailIntent.UNKNOWN
             confidence = 0.30
 
-        if intent != EmailIntent.START_ONBOARDING:
+        is_intake_or_info = intent in (
+            EmailIntent.START_ONBOARDING,
+            EmailIntent.PROVIDE_INFO,
+        )
+        if not is_intake_or_info:
             return NluExtractionResult(
                 intent=intent,
                 confidence=confidence,
@@ -202,7 +218,7 @@ class RuleBasedCandidateExtractor:
         if not department:
             dept_match = re.search(
                 r"(?:in\s+(?:the\s+)?|for\s+(?:the\s+)?|department\s*[:=]\s*)"
-                r"([A-Z][a-zA-Z]+)(?:\s+team|\s+department|[.,\n]|$)",
+                r"([A-Z][a-zA-Z]+)(?:\s+(?:team|department|starting|reporting)|[.,\n]|$)",
                 body,
             )
             if dept_match:
