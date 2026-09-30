@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.ruff_cache/
+.pytest_cache/
+
+# build artifacts
+dist/
+build/
+*.egg-info/
+
+# IDE — keep the shared run configuration, ignore the rest
+.idea/*
+!.idea/runConfigurations/
+.omc
+.claude
+
+# OS
+.DS_Store

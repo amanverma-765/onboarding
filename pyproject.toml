@@ -1,0 +1,30 @@
+[project]
+name = "uv-template"
+version = "1.0.0"
+readme = "README.md"
+description = "Your description here"
+requires-python = ">=3.14"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=7.0", "ruff>=0.14", "mypy>=1.18"]
+
+[project.scripts]
+uv-template = "uv_template.main:main"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+files = ["src", "tests", "init_project.py"]
+strict = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# lets `python3 -m pytest` work in a bare checkout, without a synced venv
+pythonpath = ["src"]
+addopts = "-q"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
