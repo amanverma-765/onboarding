@@ -11,6 +11,7 @@ from onboarding.domain.models import (
     ApprovalRequest,
     ApprovalStatus,
     AuditEvent,
+    CaseStatus,
     Employee,
     InboundEmail,
     OnboardingCase,
@@ -257,6 +258,7 @@ class TaskExecutionEngine:
             if employee is not None:
                 await self._execute_single_task(case, employee, task)
                 self._advance_dag_dependencies(case.id)
+                self.evaluate_case_readiness(case.id)
 
             return ApprovalReplyResult(
                 status="APPROVED",
@@ -290,6 +292,7 @@ class TaskExecutionEngine:
 
             # Skip downstream-only dependents
             self._skip_dependent_tasks(case.id, task.id)
+            self.evaluate_case_readiness(case.id)
 
             return ApprovalReplyResult(
                 status="REJECTED",
@@ -370,6 +373,37 @@ class TaskExecutionEngine:
                         )
                     )
 
+    def evaluate_case_readiness(self, case_id: UUID) -> OnboardingCase | None:
+        """Advance case to READY_FOR_FIRST_DAY if all DAG tasks are terminal."""
+        case = self.repository.get_case(case_id)
+        if case is None or case.status != CaseStatus.PROVISIONING:
+            return case
+
+        tasks = self.repository.get_tasks_for_case(case_id)
+        if not tasks:
+            return case
+
+        all_terminal = all(
+            t.status in (TaskStatus.COMPLETED, TaskStatus.SKIPPED) for t in tasks
+        )
+        if all_terminal:
+            case.status = CaseStatus.READY_FOR_FIRST_DAY
+            case.updated_at = datetime.now(UTC)
+            self.repository.save_case(case)
+            self.repository.save_audit_event(
+                AuditEvent(
+                    case_id=case.id,
+                    event_type="STATUS_TRANSITION",
+                    actor_type="SYSTEM",
+                    actor_id="task_engine",
+                    payload={
+                        "from_status": CaseStatus.PROVISIONING.value,
+                        "to_status": CaseStatus.READY_FOR_FIRST_DAY.value,
+                    },
+                )
+            )
+        return case
+
     async def execute_autonomous_tasks(self, case_id: UUID) -> list[OnboardingTask]:
         """Execute unblocked Tier 1 tasks until no ready autonomous tasks remain."""
         case = self.repository.get_case(case_id)
@@ -397,6 +431,7 @@ class TaskExecutionEngine:
                 executed_tasks.append(task)
                 self._advance_dag_dependencies(case_id)
 
+        self.evaluate_case_readiness(case_id)
         return executed_tasks
 
     async def _execute_single_task(

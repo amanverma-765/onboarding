@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import itertools
 import re
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
@@ -466,3 +466,153 @@ class OnboardingService:
             audit_events=audit_events,
             outbound_email=outbound_email,
         )
+
+    def trigger_start_date_arrival(
+        self, case_id: UUID, current_date: date | None = None
+    ) -> list[OutboundEmail]:
+        """Advance case to ACTIVE_ONBOARDING and draft Day 1 welcome emails."""
+        case = self.repository.get_case(case_id)
+        if case is None or case.status != CaseStatus.READY_FOR_FIRST_DAY:
+            return []
+
+        if case.employee_id is None:
+            return []
+
+        employee = self.repository.get_employee(case.employee_id)
+        if employee is None:
+            return []
+
+        if current_date is not None and current_date < employee.start_date:
+            return []
+
+        case.status = CaseStatus.ACTIVE_ONBOARDING
+        case.updated_at = datetime.now(UTC)
+
+        audit_events: list[AuditEvent] = []
+        audit_events.append(
+            AuditEvent(
+                case_id=case.id,
+                event_type="STATUS_TRANSITION",
+                actor_type="SYSTEM",
+                actor_id="service",
+                payload={
+                    "from_status": CaseStatus.READY_FOR_FIRST_DAY.value,
+                    "to_status": CaseStatus.ACTIVE_ONBOARDING.value,
+                },
+            )
+        )
+
+        # 1. Draft Day 1 welcome email to personal address
+        personal_body = (
+            f"Hello {employee.full_name},\n\n"
+            f"Welcome to your first day! We are thrilled to have you join the team.\n"
+            f"Your corporate Google account ({employee.company_email or 'pending'}) "
+            f"and Slack workspace access have been configured.\n\n"
+            f"Please check your inbox and Slack to begin your day 1 orientation.\n\n"
+            f"Best regards,\n"
+            f"Onboarding Coordination Agent"
+        )
+        email_personal = OutboundEmail(
+            recipient=employee.personal_email,
+            subject=(
+                f"Welcome to the team, {employee.full_name}! (Day 1 Guide) "
+                f"[{case.case_number}]"
+            ),
+            body=personal_body,
+        )
+
+        # 2. Draft Day 1 welcome email to company address
+        company_recipient = employee.company_email or employee.personal_email
+        company_body = (
+            f"Hello {employee.full_name},\n\n"
+            f"Welcome to your first day! Your company account is active.\n"
+            f"Please review your introductory checklist: complete required "
+            f"security training and schedule your first 1-on-1 with your manager.\n\n"
+            f"Best regards,\n"
+            f"Onboarding Coordination Agent"
+        )
+        email_company = OutboundEmail(
+            recipient=company_recipient,
+            subject=(
+                f"Welcome to your first day, {employee.full_name}! [{case.case_number}]"
+            ),
+            body=company_body,
+        )
+
+        audit_events.append(
+            AuditEvent(
+                case_id=case.id,
+                event_type="DAY_ONE_WELCOME_SENT",
+                actor_type="AGENT",
+                actor_id="service",
+                payload={
+                    "personal_email": employee.personal_email,
+                    "company_email": employee.company_email,
+                },
+            )
+        )
+
+        # 3. Create first-week tasks
+        task_training = OnboardingTask(
+            case_id=case.id,
+            task_key="COMPLETE_SECURITY_TRAINING",
+            owner_type="EMPLOYEE",
+            status=TaskStatus.READY,
+        )
+        task_1on1 = OnboardingTask(
+            case_id=case.id,
+            task_key="SCHEDULE_1ON1_MANAGER",
+            owner_type="MANAGER",
+            status=TaskStatus.READY,
+        )
+
+        self.repository.save_case(case)
+        self.repository.save_tasks([task_training, task_1on1])
+        for event in audit_events:
+            self.repository.save_audit_event(event)
+
+        return [email_personal, email_company]
+
+    def complete_first_week_tasks(self, case_id: UUID) -> OnboardingCase | None:
+        """Mark first-week tasks completed and transition case to COMPLETED."""
+        case = self.repository.get_case(case_id)
+        if case is None or case.status != CaseStatus.ACTIVE_ONBOARDING:
+            return case
+
+        tasks = self.repository.get_tasks_for_case(case_id)
+        for task in tasks:
+            if task.status in (TaskStatus.READY, TaskStatus.IN_PROGRESS):
+                task.status = TaskStatus.COMPLETED
+                task.completed_at = datetime.now(UTC)
+
+        all_terminal = all(
+            t.status in (TaskStatus.COMPLETED, TaskStatus.SKIPPED) for t in tasks
+        )
+        if all_terminal:
+            case.status = CaseStatus.COMPLETED
+            case.updated_at = datetime.now(UTC)
+            self.repository.save_case(case)
+            self.repository.save_tasks(tasks)
+            self.repository.save_audit_event(
+                AuditEvent(
+                    case_id=case.id,
+                    event_type="STATUS_TRANSITION",
+                    actor_type="SYSTEM",
+                    actor_id="service",
+                    payload={
+                        "from_status": CaseStatus.ACTIVE_ONBOARDING.value,
+                        "to_status": CaseStatus.COMPLETED.value,
+                    },
+                )
+            )
+            self.repository.save_audit_event(
+                AuditEvent(
+                    case_id=case.id,
+                    event_type="CASE_COMPLETED",
+                    actor_type="AGENT",
+                    actor_id="service",
+                    payload={"case_number": case.case_number},
+                )
+            )
+
+        return case
