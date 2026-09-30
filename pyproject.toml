@@ -1,22 +1,24 @@
 [project]
-name = "uv-template"
+name = "onboarding"
 version = "1.0.0"
 readme = "README.md"
-description = "Your description here"
+description = "company onboarding workflow"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "pydantic[email]>=2.13.5",
+]
 
 [dependency-groups]
 dev = ["pytest>=7.0", "ruff>=0.14", "mypy>=1.18"]
 
 [project.scripts]
-uv-template = "uv_template.main:main"
+onboarding = "onboarding.main:main"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.mypy]
-files = ["src", "tests", "init_project.py"]
+files = ["src", "tests"]
 strict = true
 
 [tool.pytest.ini_options]

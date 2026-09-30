@@ -1,6 +1,6 @@
 import pytest
 
-from uv_template import main
+from onboarding import main
 
 
 def test_main_prints(capsys: pytest.CaptureFixture[str]) -> None:

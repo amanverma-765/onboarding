@@ -1,29 +1,6 @@
-# uv-template
+# onboarding
 
-Template for uv-based Python projects: src layout, ruff, mypy, pytest,
-pre-commit, a PyCharm run configuration. Nothing else.
-
-## Make it yours
-
-Clone it, then run the initializer. It is stdlib-only, so it works before a venv
-exists.
-
-```bash
-python3 init_project.py             # interactive rename, then it deletes itself
-python3 init_project.py --dry-run   # preview only
-```
-
-It asks for a project name, a package name and a description, then:
-
-- rewrites both names through every text file — `pyproject.toml`, `README.md`,
-  `src/`, `tests/`, `.pre-commit-config.yaml`
-- renames `src/uv_template/` and the PyCharm run configuration to match
-- deletes `uv.lock` and `.venv/`, so the next `uv sync` resolves fresh
-- resets git history, if you want it to
-- runs `uv sync` and `uvx pre-commit install`, then deletes itself
-
-Everything above this point is template boilerplate and disappears when you run
-it. Everything below becomes your project's README.
+company onboarding workflow
 
 ## Use it
 
@@ -33,7 +10,7 @@ interpreter if you don't already have one.
 | Command | |
 | --- | --- |
 | `uv sync` | create `.venv` and install dependencies |
-| `uv run uv-template` | run the CLI |
+| `uv run onboarding` | run the CLI |
 | `uv run pytest` | run the tests |
 | `uv run ruff check --fix .` | lint |
 | `uv run ruff format .` | format |
@@ -44,7 +21,7 @@ interpreter if you don't already have one.
 
 | Path | |
 | --- | --- |
-| `src/uv_template/main.py` | `main()`, what the console script calls |
+| `src/onboarding/main.py` | `main()`, what the console script calls |
 | `tests/test_main.py` | its test |
 | `pyproject.toml` | dependencies, entry point, ruff, mypy and pytest config |
 | `.pre-commit-config.yaml` | the commit hooks |
