@@ -30,6 +30,14 @@ class TaskStatus(StrEnum):
     SKIPPED = "SKIPPED"
 
 
+class ApprovalStatus(StrEnum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    EXPIRED = "EXPIRED"
+    ESCALATED = "ESCALATED"
+
+
 TaskOwnerType = Literal["IT", "HR", "MANAGER", "EMPLOYEE"]
 
 MANDATORY_CANDIDATE_FIELDS: tuple[str, ...] = (
@@ -120,6 +128,22 @@ class TaskDependency(BaseModel):
 
     task_id: UUID
     depends_on_task_id: UUID
+
+
+class ApprovalRequest(BaseModel):
+    """Explicit human sign-off gate for Tier 2 privileged tasks."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: UUID = Field(default_factory=uuid4)
+    task_id: UUID
+    case_id: UUID
+    approver_email: EmailStr
+    status: ApprovalStatus = ApprovalStatus.PENDING
+    verp_token_hash: str
+    requested_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    decided_at: datetime | None = None
+    decision_reason: str | None = None
 
 
 class InboundEmail(BaseModel):

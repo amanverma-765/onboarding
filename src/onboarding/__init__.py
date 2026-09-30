@@ -4,7 +4,10 @@ from onboarding.application.service import (
     InboundProcessingResult,
     OnboardingService,
 )
-from onboarding.application.task_engine import TaskExecutionEngine
+from onboarding.application.task_engine import (
+    ApprovalReplyResult,
+    TaskExecutionEngine,
+)
 from onboarding.domain.extractor import (
     CandidateExtractor,
     EmailIntent,
@@ -12,6 +15,8 @@ from onboarding.domain.extractor import (
     RuleBasedCandidateExtractor,
 )
 from onboarding.domain.models import (
+    ApprovalRequest,
+    ApprovalStatus,
     AuditEvent,
     CandidateDraft,
     CaseStatus,
@@ -31,13 +36,18 @@ from onboarding.domain.ports import (
     SlackPort,
 )
 from onboarding.domain.sanitizer import EmailSanitizer
+from onboarding.domain.verp import VerpTokenService
 from onboarding.infrastructure.mock_adapters import (
     MockGitHubAdapter,
     MockGoogleWorkspaceAdapter,
+    MockHardwareAdapter,
     MockSlackAdapter,
 )
 
 __all__ = [
+    "ApprovalReplyResult",
+    "ApprovalRequest",
+    "ApprovalStatus",
     "AuditEvent",
     "CandidateDraft",
     "CandidateExtractor",
@@ -52,6 +62,7 @@ __all__ = [
     "InboundProcessingResult",
     "MockGitHubAdapter",
     "MockGoogleWorkspaceAdapter",
+    "MockHardwareAdapter",
     "MockSlackAdapter",
     "NluExtractionResult",
     "OnboardingCase",
@@ -64,4 +75,5 @@ __all__ = [
     "TaskDependency",
     "TaskExecutionEngine",
     "TaskStatus",
+    "VerpTokenService",
 ]

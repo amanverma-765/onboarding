@@ -4,6 +4,7 @@ from typing import Protocol
 from uuid import UUID
 
 from onboarding.domain.models import (
+    ApprovalRequest,
     AuditEvent,
     Employee,
     OnboardingCase,
@@ -37,6 +38,20 @@ class CaseRepository(Protocol):
 
     def get_audit_events(self, case_id: UUID) -> list[AuditEvent]: ...
 
+    def save_approval_request(self, request: ApprovalRequest) -> None: ...
+
+    def get_approval_request_for_task(
+        self, task_id: UUID
+    ) -> ApprovalRequest | None: ...
+
+    def get_approval_requests_for_case(
+        self, case_id: UUID
+    ) -> list[ApprovalRequest]: ...
+
+    def find_approval_request_by_token_hash(
+        self, token_hash: str
+    ) -> ApprovalRequest | None: ...
+
     def commit_provisioning_transition(
         self,
         case: OnboardingCase,
@@ -57,6 +72,9 @@ class InMemoryCaseRepository:
         self._tasks: dict[UUID, list[OnboardingTask]] = {}
         self._dependencies: dict[UUID, list[TaskDependency]] = {}
         self._audit_events: dict[UUID, list[AuditEvent]] = {}
+        self._approval_requests_by_task: dict[UUID, ApprovalRequest] = {}
+        self._approval_requests_by_case: dict[UUID, list[ApprovalRequest]] = {}
+        self._approval_requests_by_token_hash: dict[str, ApprovalRequest] = {}
 
     def save_case(self, case: OnboardingCase) -> None:
         self._cases[case.id] = case
@@ -79,15 +97,25 @@ class InMemoryCaseRepository:
 
     def save_tasks(self, tasks: list[OnboardingTask]) -> None:
         for task in tasks:
-            self._tasks.setdefault(task.case_id, []).append(task)
+            task_list = self._tasks.setdefault(task.case_id, [])
+            for i, existing in enumerate(task_list):
+                if existing.id == task.id:
+                    task_list[i] = task
+                    break
+            else:
+                task_list.append(task)
 
     def get_tasks_for_case(self, case_id: UUID) -> list[OnboardingTask]:
         return list(self._tasks.get(case_id, []))
 
     def save_task_dependencies(self, dependencies: list[TaskDependency]) -> None:
         for dep in dependencies:
-            # We index dependencies by task_id
-            self._dependencies.setdefault(dep.task_id, []).append(dep)
+            dep_list = self._dependencies.setdefault(dep.task_id, [])
+            exists = any(
+                d.depends_on_task_id == dep.depends_on_task_id for d in dep_list
+            )
+            if not exists:
+                dep_list.append(dep)
 
     def get_task_dependencies_for_case(self, case_id: UUID) -> list[TaskDependency]:
         case_tasks = self.get_tasks_for_case(case_id)
@@ -102,6 +130,27 @@ class InMemoryCaseRepository:
 
     def get_audit_events(self, case_id: UUID) -> list[AuditEvent]:
         return list(self._audit_events.get(case_id, []))
+
+    def save_approval_request(self, request: ApprovalRequest) -> None:
+        self._approval_requests_by_task[request.task_id] = request
+        self._approval_requests_by_token_hash[request.verp_token_hash] = request
+        reqs = self._approval_requests_by_case.setdefault(request.case_id, [])
+        for i, existing in enumerate(reqs):
+            if existing.id == request.id:
+                reqs[i] = request
+                return
+        reqs.append(request)
+
+    def get_approval_request_for_task(self, task_id: UUID) -> ApprovalRequest | None:
+        return self._approval_requests_by_task.get(task_id)
+
+    def get_approval_requests_for_case(self, case_id: UUID) -> list[ApprovalRequest]:
+        return list(self._approval_requests_by_case.get(case_id, []))
+
+    def find_approval_request_by_token_hash(
+        self, token_hash: str
+    ) -> ApprovalRequest | None:
+        return self._approval_requests_by_token_hash.get(token_hash)
 
     def commit_provisioning_transition(
         self,

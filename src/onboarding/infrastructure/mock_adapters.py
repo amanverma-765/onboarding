@@ -6,6 +6,7 @@ from uuid import uuid4
 from onboarding.domain.ports import (
     GitHubPort,
     GoogleWorkspacePort,
+    HardwarePort,
     ProvisioningResult,
     SlackPort,
 )
@@ -223,6 +224,45 @@ class MockGitHubAdapter(GitHubPort):
             success=True,
             external_id=inv_id,
             metadata={"teams": teams, "reconciled": False},
+        )
+        self.seen_idempotency_keys[idempotency_key] = result
+        return result
+
+
+class MockHardwareAdapter(HardwarePort):
+    """Stateful in-memory adapter for hardware requisitions."""
+
+    def __init__(self) -> None:
+        self.orders: dict[str, dict[str, Any]] = {}
+        self.seen_idempotency_keys: dict[str, ProvisioningResult] = {}
+
+    async def order_laptop(
+        self,
+        employee_id: str,
+        role_title: str,
+        shipping_address: dict[str, str],
+        idempotency_key: str,
+    ) -> ProvisioningResult:
+        if idempotency_key in self.seen_idempotency_keys:
+            return self.seen_idempotency_keys[idempotency_key]
+
+        if employee_id in self.orders:
+            return ProvisioningResult(
+                success=True,
+                external_id=self.orders[employee_id]["id"],
+                metadata={"reconciled": True},
+            )
+
+        order_id = f"hw_ord_{uuid4().hex[:12]}"
+        self.orders[employee_id] = {
+            "id": order_id,
+            "role_title": role_title,
+            "shipping_address": shipping_address,
+        }
+        result = ProvisioningResult(
+            success=True,
+            external_id=order_id,
+            metadata={"order_id": order_id, "reconciled": False},
         )
         self.seen_idempotency_keys[idempotency_key] = result
         return result
